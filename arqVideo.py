@@ -3,7 +3,6 @@ import numpy as np
 import MySQLdb
 from datetime import datetime, timedelta
 import base64
-import urllib.request, json
 import math
 
 
@@ -83,6 +82,30 @@ def conectar(url):
                     max_height = max(contornos, key=lambda r: r[3])[3]
                     nearest = max_height * 1.4
                     contornos.sort(key=lambda r: (int(nearest * round(float(r[1]) / nearest)) * max_width + r[0]))
+                ponto1 = contornos[0]
+                ponto2 = contornos[1]
+                y1 = ponto1[1]
+                y2 = ponto2[1]
+                x1 = ponto1[0]
+                x2 = ponto2[0]
+                m = (y2 - y1) / (x2 - x1)
+                m = math.degrees(m)
+
+                (h, w) = desfoque.shape[:2]
+                center = (w // 2, h // 2)
+                M = cv2.getRotationMatrix2D(center, m, 1.0)
+                rotated = cv2.warpAffine(cinza, M, (w, h), flags=cv2.INTER_CUBIC, borderMode=cv2.BORDER_REPLICATE)
+                classesRegiao, scoresRegiao, boxesRegiao = modelRegiao.detect(rotated, CONFIDENCE_THRESHOLD,
+                                                                              NMS_THRESHOLD)
+                contornos = []
+                for e in boxesRegiao:
+                    contornos.append(e)
+                contornos = sorted(contornos, key=lambda cont: cont[0])
+                if int(classesVeiculo[0]) == 1:
+                    max_width = max(contornos, key=lambda r: r[0] + r[2])[0]
+                    max_height = max(contornos, key=lambda r: r[3])[3]
+                    nearest = max_height * 1.4
+                    contornos.sort(key=lambda r: (int(nearest * round(float(r[1]) / nearest)) * max_width + r[0]))
                 ocrPlaca = ''
                 for f in contornos:
                     xRegiao, yRegiao, wRegiao, hRegiao = f
@@ -128,22 +151,11 @@ def conectar(url):
                 for item in cur.fetchall():
                     itens.append(item[0])
                 if ocrPlaca not in itens:
-                    try:
-                        with urllib.request.urlopen(
-                                f'https://apicarros.com/v1/consulta/{ocrPlaca.lower()}/json') as url:
-                            dados = json.loads(url.read().decode())
-                    except:
-                        parte3 = parte3.replace('1', 'I')
-                        parte3 = parte3.replace('0', 'O')
-                        ocrPlaca = parte1 + parte2 + parte3 + parte4
-                        try:
-                            with urllib.request.urlopen(
-                                    f'https://apicarros.com/v1/consulta/{ocrPlaca.lower()}/json') as url:
-                                dados = json.loads(url.read().decode())
-                        except:
-                            dados = 'ERROR'
-                    sql = "INSERT INTO dados (placa, data, imagem, modelo, cor, uf, municipio) VALUES (%s, %s, %s, %s, %s, %s, %s)"
-                    val = (ocrPlaca, formatted_atual, im_b64, dados['marca'], dados['cor'], dados['uf'], dados['municipio'])
+                    parte3 = parte3.replace('1', 'I')
+                    parte3 = parte3.replace('0', 'O')
+                    ocrPlaca = parte1 + parte2 + parte3 + parte4
+                    sql = "INSERT INTO dados (placa, data, imagem) VALUES (%s, %s, %s)"
+                    val = (ocrPlaca, formatted_atual, im_b64)
                     cur.execute(sql, val)
                     db.commit()
             db.close()

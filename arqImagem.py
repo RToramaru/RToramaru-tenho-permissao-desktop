@@ -3,7 +3,7 @@ import numpy as np
 import MySQLdb
 from datetime import datetime, timedelta
 import base64
-import urllib.request, json
+import math
 
 
 def conectar(url):
@@ -81,6 +81,29 @@ def conectar(url):
                 max_height = max(contornos, key=lambda r: r[3])[3]
                 nearest = max_height * 1.4
                 contornos.sort(key=lambda r: (int(nearest * round(float(r[1]) / nearest)) * max_width + r[0]))
+            ponto1 = contornos[0]
+            ponto2 = contornos[1]
+            y1 = ponto1[1]
+            y2 = ponto2[1]
+            x1 = ponto1[0]
+            x2 = ponto2[0]
+            m = (y2 - y1) / (x2 - x1)
+            m = math.degrees(m)
+
+            (h, w) = desfoque.shape[:2]
+            center = (w // 2, h // 2)
+            M = cv2.getRotationMatrix2D(center, m, 1.0)
+            rotated = cv2.warpAffine(cinza, M, (w, h), flags=cv2.INTER_CUBIC, borderMode=cv2.BORDER_REPLICATE)
+            classesRegiao, scoresRegiao, boxesRegiao = modelRegiao.detect(rotated, CONFIDENCE_THRESHOLD, NMS_THRESHOLD)
+            contornos = []
+            for e in boxesRegiao:
+                contornos.append(e)
+            contornos = sorted(contornos, key=lambda cont: cont[0])
+            if int(classesVeiculo[0]) == 1:
+                max_width = max(contornos, key=lambda r: r[0] + r[2])[0]
+                max_height = max(contornos, key=lambda r: r[3])[3]
+                nearest = max_height * 1.4
+                contornos.sort(key=lambda r: (int(nearest * round(float(r[1]) / nearest)) * max_width + r[0]))
             ocrPlaca = ''
             for f in contornos:
                 xRegiao, yRegiao, wRegiao, hRegiao = f
@@ -98,21 +121,16 @@ def conectar(url):
 
                 classesCaractere, scoresCaractere, boxesCaractere = modelCaractere.detect(imagem, CONFIDENCE_THRESHOLD, NMS_THRESHOLD)
                 ocrPlaca += listaCaracteres[int(classesCaractere[0])]
-
             parte1 = ocrPlaca[:3]
             parte2 = ocrPlaca[3]
             parte3 = ocrPlaca[4]
             parte4 = ocrPlaca[5:]
-
             parte1 = parte1.replace('1', 'I')
             parte1 = parte1.replace('0', 'O')
-
             parte2 = parte2.replace('I', '1')
             parte2 = parte2.replace('O', '0')
-
             parte3 = parte3.replace('I', '1')
             parte3 = parte3.replace('O', '0')
-
             parte4 = parte4.replace('I', '1')
             parte4 = parte4.replace('O', '0')
             ocrPlaca = parte1 + parte2 + parte3 + parte4
@@ -126,41 +144,11 @@ def conectar(url):
             for item in cur.fetchall():
                 itens.append(item[0])
             if ocrPlaca not in itens:
-                try:
-                    with urllib.request.urlopen(
-                            f'https://apicarros.com/v1/consulta/{ocrPlaca.lower()}/json') as url:
-                        dados = json.loads(url.read().decode())
-                except:
-                    parte3 = parte3.replace('1', 'I')
-                    parte3 = parte3.replace('0', 'O')
-                    ocrPlaca = parte1 + parte2 + parte3 + parte4
-                    try:
-                        with urllib.request.urlopen(
-                                f'https://apicarros.com/v1/consulta/{ocrPlaca.lower()}/json') as url:
-                            dados = json.loads(url.read().decode())
-                    except:
-                        dados = 'ERROR'
-                if not dados == 'ERROR':
-                    sql = "INSERT INTO dados (placa, data, imagem, modelo, cor, uf, municipio) VALUES (%s, %s, %s, %s, %s, %s, %s)"
-                    val = (
-                    ocrPlaca, formatted_atual, im_b64, dados['marca'], dados['cor'], dados['uf'], dados['municipio'])
-                    cur.execute(sql, val)
-                    db.commit()
-                    marca = dados['marca']
-                    cor = dados['cor']
-                    uf = dados['uf']
-                    municipio = dados['municipio']
-                else:
-                    marca = 'ERROR'
-                    cor = 'ERROR'
-                    uf = 'ERROR'
-                    municipio = 'ERROR'
-        db.close()
-    valores = []
-    valores.append(ocrPlaca)
-    valores.append(formatted_data)
-    valores.append(marca)
-    valores.append(cor)
-    valores.append(uf)
-    valores.append(municipio)
-    return valores
+                parte3 = parte3.replace('1', 'I')
+                parte3 = parte3.replace('0', 'O')
+                ocrPlaca = parte1 + parte2 + parte3 + parte4
+                sql = "INSERT INTO dados (placa, data, imagem) VALUES (%s, %s, %s)"
+                val = (ocrPlaca, formatted_atual, im_b64)
+                cur.execute(sql, val)
+                db.commit()
+    return ocrPlaca
