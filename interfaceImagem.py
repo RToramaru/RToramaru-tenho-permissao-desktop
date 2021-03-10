@@ -31,6 +31,14 @@ def encontraPlaca():
     text_widow = canvas.create_window(420, 150, anchor=tk.NW, window=textResult)
     result = arqImagem.conectar(placa)
     textResult.config(text=f'Placa: {result}', bg='#39b1fd', fg='white')
+
+def info():
+    newWindow = tk.Toplevel(root)
+    newWindow.geometry('{}x{}'.format(200, 200))
+    labelInfo = tk.Label(newWindow, text='Sistema Tenho permissão ?\n'
+                                            'Desenvolvido por \n'
+                                         'Rafael Almeida Soares')
+    labelInfo.pack()
 placa = None
 IMAGE_PATH = 'imagens/fundo.jpg'
 WIDTH, HEIGTH = 600, 600
@@ -49,4 +57,7 @@ detectar.config(height=1, width=20)
 button_window = canvas.create_window(420, 100, anchor=tk.NW, window=detectar)
 inputImagem = tk.Label(root)
 textResult = tk.Label(root)
+meuMenu = tk.Menu(root)
+meuMenu.add_command(label='Sobre', command=info)
+root.config(menu=meuMenu)
 root.mainloop()
