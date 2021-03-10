@@ -38,6 +38,8 @@ def info():
     labelInfo = tk.Label(newWindow, text='Sistema Tenho permissão ?\n'
                                             'Desenvolvido por \n'
                                          'Rafael Almeida Soares')
+    newWindow.configure(background='#627efc')
+    labelInfo.configure(background='#627efc', fg='white', height=20)
     labelInfo.pack()
 placa = None
 IMAGE_PATH = 'imagens/fundo.jpg'
